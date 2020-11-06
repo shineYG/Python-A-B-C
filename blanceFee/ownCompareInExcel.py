@@ -3,9 +3,9 @@ import openpyxl
 import time
 import datetime
 
-user71 = 'iwms'
-pw71 = 'iwms'
-dsn71 = "192.168.0.71/orcl"
+user71 = 'xxxx'
+pw71 = 'xxxx'
+dsn71 = "192.168.0.xxx/xxx"
 
 def queryDB(user, pw, dsn, sql, param):
     connection= cx_Oracle.connect(user, pw, dsn, encoding = "UTF-8", nencoding = "UTF-8")
