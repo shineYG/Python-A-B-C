@@ -1,0 +1,99 @@
+select /*+ parallel(20)*/
+ sum(water_data), sum(fee_sum), rcvbl_ym, cons_id
+  from (select sum(case
+                     when det.range_type_code like '0_' then
+                      det.water_data
+                     else
+                      0
+                   end) water_data,
+               sum(det.fee_sum) fee_sum,
+               t.cons_id,
+               t.rcvbl_ym
+          from iwms.a_wf_rcvbl t, arc_w_wf_cons_fee_detail det
+         where (state = 'A' or rcved_ym = '202010')
+           and t.calc_id = det.calc_id --and det.range_type_code like '0_'
+           and rcvbl_ym >= :1 --'201301'
+           and rcvbl_ym <= :2 --'201312'
+           and t.rcvbl_amt > 0
+           and water_data >= 0
+           and rcvbl_type = '0100'
+         group by t.rcvbl_ym, t.cons_id
+        union all
+        select 0,
+               (rec.居民用水 - nvl(paid.居民用水, 0)) 居民用水,
+               rec.rlmonth,
+               rec.RLCID
+          from (select rlmonth,
+                       RLCID,
+                       sum(decode(rlcd, 'DE', 1, -1) * rdje) 居民用水
+                  from (select RLCID,
+                               rlid,
+                               (case
+                                 when rltrans = 'V' and rlcd = 'CR' then
+                                  rlscrrlmonth
+                                 else
+                                  rlmonth
+                               end) rlmonth,
+                               rlpfid,
+                               rlcd
+                          from water.reclist
+                         where rlmonth <= '2020.10'
+                           and RLMRID in (select RLMRID
+                                            from water.reclist r
+                                           inner join water.recdetail
+                                              on rlid = rdid
+                                             and rdje > 0
+                                             and rdpiid = '01'
+                                             and rdpiid <> '09'
+                                            left join water.paidlist p
+                                              on plrlid = rlid
+                                           where RLPAIDFLAG = 'Y'
+                                             and substr(RLMONTH, 1, 4) = :3 --'2013'
+                                             and plrlid is null
+                                             and rdpiid = '01'
+                                             and rdpiid <> '09'
+                                           group by RLMRID)) rl,
+                       water.recdetail
+                 where rlid = rdid
+                   and rdje > 0 
+                   and rdpiid <> '09'
+                   and substr(rlmonth, 1, 4) = :4 --'2013'
+                 group by RLCID, rlmonth) rec,
+               (select rlmonth,
+                       RLCID,
+                       sum(decode(plcd, 'DE', 1, -1) * rdje) 居民用水
+                  from water.payment,
+                       water.paidlist,
+                       water.paiddetail,
+                       water.reclist,
+                       water.recdetail
+                 where rlid = rdid
+                   and pdpiid = rdpiid
+                   and pid = plpid
+                   and plid = pdid
+                   and plrlid = rlid
+                   and pdje > 0
+                   and pmonth <= '2020.10' --and substr(rdpfid,1,2)='01'  
+                   and pdpiid <> '09'
+                   and substr(rlmonth, 1, 4) = :5 --'2013'
+                   and RLMRID in (select RLMRID
+                                    from water.reclist r
+                                   inner join water.recdetail
+                                      on rlid = rdid
+                                     and rdje > 0
+                                     and rdpiid = '01'
+                                     and rdpiid <> '09'
+                                    left join water.paidlist p
+                                      on plrlid = rlid
+                                   where RLPAIDFLAG = 'Y'
+                                     and substr(RLMONTH, 1, 4) = :6 --'2013'
+                                     and plrlid is null
+                                     and rdpiid = '01'
+                                     and rdpiid <> '09'
+                                   group by RLMRID)
+                 group by RLCID, rlmonth) paid
+         where rec.RLCID = paid.RLCID(+)
+           and rec.rlmonth = paid.rlmonth
+           and (rec.居民用水 - nvl(paid.居民用水, 0)) <> 0)
+ group by cons_id, rcvbl_ym
+ order by rcvbl_ym
