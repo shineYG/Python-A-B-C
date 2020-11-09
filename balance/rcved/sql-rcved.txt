@@ -1,0 +1,23 @@
+SELECT /*+ parallel(20)*/
+       SUM(NVL(FEE_SUM, 0)) ALL_FEE
+    FROM 
+     IWMS.A_WF_RCVBL               BL,
+         IWMS.A_WF_RCVED               ED,
+         IWMS.ARC_W_WF_CONS_FEE_DETAIL FD,
+         IWMS.ARC_W_WF_CONS_MP_FEE     MF,
+         IWMS.ARC_W_WF_CONS_FEE        F
+   WHERE BL.RCVBL_ID = ED.RCVBL_ID
+     AND BL.CALC_ID = FD.CALC_ID
+     AND BL.CALC_ID = MF.CALC_ID
+     AND F.FEE_ID = BL.FEE_ID
+     AND F.FEE_ID = MF.FEE_ID
+     AND MF.MP_FEE_ID = FD.MP_FEE_ID  
+     AND BL.RCVBL_TYPE = '0100'
+     AND BL.STATE IN ( 'Z','H','F')  
+     AND ED.CHARGE_DATE >= TO_DATE('2020-10-01', 'yyyy-mm-dd')
+     AND ED.CHARGE_DATE < TO_DATE('2020-10-31', 'yyyy-mm-dd') + 1    
+     AND ED.RCVED_YM >= '202010'  
+     AND ED.RCVED_YM <= '202010'  
+     AND BL.RCVBL_YM >= :1
+     AND BL.RCVBL_YM <= :2           
+     AND BL.ORG_NO = '3240101'
